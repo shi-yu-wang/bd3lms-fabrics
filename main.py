@@ -177,6 +177,32 @@ def _train(fabric: Fabric, config, logger, model, tokenizer):
   except Exception as e:
     logger.error(f"Error during TPU synchronization: {e}")
     raise
+  # if config.training.from_pretrained is not None and ckpt_path is None:
+  #   logger.info(f'Loading pretrained model from {config.training.from_pretrained}')
+  #   # load pretraining checkpoint
+  #   if 'kuleshov-group/' in config.training.from_pretrained:
+  #     # load from hf
+  #     model = diffusion.Diffusion(config, tokenizer=tokenizer)
+  #     state_dict = transformers.AutoModelForMaskedLM.from_pretrained(
+  #         config.training.from_pretrained,
+  #         trust_remote_code=True
+  #     ).state_dict()
+  #     model.load_state_dict(state_dict)
+  #   else:
+  #     model = diffusion.Diffusion.load_from_checkpoint(
+  #       config.training.from_pretrained,
+  #       tokenizer=tokenizer,
+  #       config=config,
+  #       strict=False)
+  #   # add buffers for grid search
+  #   model.register_buffer('sampling_eps_min', torch.tensor(
+  #     config.training.sampling_eps_min))
+  #   model.register_buffer('sampling_eps_max', torch.tensor(
+  #     config.training.sampling_eps_max))
+  # else:
+  #   logger.info(f'Initializing new model')
+  #   model = diffusion.Diffusion(
+  #     config, tokenizer=tokenizer)
 
   trainer = hydra.utils.instantiate(
     config.trainer,
@@ -220,6 +246,7 @@ def _train_manual(fabric: Fabric, config, logger, model, tokenizer):
   
   print(f"Start training loop")
   epoch_idx = 0
+  steps = 0
   with tqdm(total=config.trainer.max_steps) as pbar:
     # for epoch_idx in range(config.trainer.max_steps):
     fabric.print(f"Starting Epoch {epoch_idx} (Global step: {global_step})")
@@ -227,7 +254,7 @@ def _train_manual(fabric: Fabric, config, logger, model, tokenizer):
     print(f"length of train_ds: {len(train_ds)}")
     for batch_idx, batch in enumerate(train_ds):
       # fabric.print(f"Batch {batch_idx} training")
-      
+      steps += 1
       # Forward pass and loss calculation
       loss = model.training_step(batch, batch_idx)
       
@@ -238,21 +265,22 @@ def _train_manual(fabric: Fabric, config, logger, model, tokenizer):
       fabric.backward(loss)
       
       # Update weights if we've accumulated enough gradients
-      if (batch_idx + 1) % accumulate_grad_batches == 0:
-        # Apply gradient clipping if enabled
-        if config.trainer.gradient_clip_val > 0:
-          fabric.clip_gradients(model, optimizer, max_norm=config.trainer.gradient_clip_val)
-        
+      if steps % accumulate_grad_batches == 0:
+        # # Apply gradient clipping if enabled
+        # print(f"Applying gradient clipping")
+        # if config.trainer.gradient_clip_val > 0:
+        #   fabric.clip_gradients(model, optimizer, max_norm=config.trainer.gradient_clip_val)
+        print(f"Optimizer step")
         optimizer.step()
-        optimizer.zero_grad()
         xm.mark_step()  # Mark step after optimizer step
+        optimizer.zero_grad()
         global_step += 1
         
-        if fabric.is_global_zero and batch_idx % 10 == 0:
+        if fabric.is_global_zero and steps % 10 == 0:
           fabric.print(f"Epoch {epoch_idx}/{config.trainer.max_steps} | "
-                      f"Batch {batch_idx} | "
+                      f"Batch {steps} | "
                       f"Loss: {loss.item() * config.trainer.accumulate_grad_batches:.4f}")
-        pbar.update(1)
+      pbar.update(1)
     epoch_idx += 1
     fabric.barrier()  # Synchronize at the end of each epoch
 
@@ -294,6 +322,16 @@ def main(config):
         precision="bf16-true"          # NOTE: ValueError: `precision='bf16-mixed')` is not supported in XLA. `precision` must be one of: ('32-true', '16-true', 'bf16-true').
     )
   fabric.launch(_train_manual, config, logger, model, tokenizer)
+
+  # if config.mode == 'sample_eval':
+  #   config.wandb = None
+  #   samples = generate_samples(config, logger, tokenizer)
+  # elif config.mode == 'ppl_eval':
+  #   config.wandb = None
+  #   _ppl_eval(config, logger, tokenizer)
+  # else:
+  #   _train(fabric, config, logger, tokenizer)
+
 
 if __name__ == '__main__':
   main()
