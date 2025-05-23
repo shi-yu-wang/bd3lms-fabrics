@@ -155,14 +155,39 @@ python -u main.py \
 ### Training Pipeline
 To train BD3-LMs, use `mode=train` (default mode). Example scripts are provided in `scripts/train/train_owt*.sh`. Here's an example training script on OpenWebText:
 ```bash
-BLOCK_SIZE=4 # we recommend 4, 8, or 16. must be a factor of the context length
-PRETRAIN_CKPT=kuleshov-group/bd3lm-owt-block_size1024-pretrain # to train from scratch, set to null
 
-python -u main.py \
-    loader.global_batch_size=512 \
-    loader.eval_global_batch_size=512 \
-    loader.batch_size=16 \
-    loader.eval_batch_size=16 \
+gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
+  --worker=all \
+  --zone=us-central2-b \
+  --project=salesforce-research-internal \
+  --tunnel-through-iap \
+  --command="ps aux | grep main.py | grep -v grep | awk '{print \$2}' | xargs -r kill -9"
+
+BLOCK_SIZE=4 # we recommend 4, 8, or 16. must be a factor of the context length
+PRETRAIN_CKPT=null # to train from scratch, set to null
+
+gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
+  --zone=us-central2-b \
+  --project=salesforce-research-internal \
+  --tunnel-through-iap \
+  --worker=all \
+  --command="pkill -f python"
+
+sleep 10
+
+gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
+  --worker=all \
+  --zone=us-central2-b \
+  --project=salesforce-research-internal \
+  --tunnel-through-iap \
+  --command="export PATH=$HOME/.local/bin:$PATH && \
+    cd /home/shiyu.wang/bd3lms && \
+    export PYTHONPATH="$PYTHONPATH:/home/shiyu.wang/bd3lms" && \
+    python -u main.py \
+    loader.global_batch_size=256 \
+    loader.eval_global_batch_size=256 \
+    loader.batch_size=4 \
+    loader.eval_batch_size=4 \
     model=small \
     algo=bd3lm \
     algo.clip_search_widths=[0.5,0.6,0.7,0.8,0.9] \
@@ -171,9 +196,9 @@ python -u main.py \
     block_size=$BLOCK_SIZE \
     wandb.name=bd3lm-owt-block_size${BLOCK_SIZE} \
     mode=train \
-    model.attn_backend=flex \
+    model.attn_backend=sdpa \
     training.resample=True \
-    training.from_pretrained=$PRETRAIN_CKPT
+    training.from_pretrained=$PRETRAIN_CKPT"
 ```
 The arguments `loader.batch_size` and `loader.eval_batch_size` allow you to control the batch size per GPU. If `loader.batch_size * num_gpus` is less than the global_batch_size, PyTorch Lightning will resort to gradient accumulation. You can also launch a training job on Slurm using the command: `sbatch scripts/train/train_owt_bd3lm.sh`.
 
