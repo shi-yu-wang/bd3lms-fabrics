@@ -51,9 +51,12 @@ In this repo, we provide:
 To get started, create a conda environment containing the required dependencies.
 
 ```bash
-conda create --name bd3lm python=3.9
-conda activate bd3lm
-pip install -r requirements.txt
+gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
+  --worker=all \
+  --zone=us-central2-b \
+  --project=salesforce-research-internal \
+  --tunnel-through-iap \
+  --command="pip install -r requirements.txt"
 ```
 While BD3-LMs don't require FlashAttention, evaluating baselines from MDLM require `flash-attn==2.5.6`
 
