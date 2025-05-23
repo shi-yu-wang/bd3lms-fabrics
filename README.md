@@ -48,7 +48,7 @@ In this repo, we provide:
 
 ## Getting Started
 
-To get started, create a conda environment containing the required dependencies.
+To get started, create a conda environment containing the required dependencies. Don't forget to change the path to your own.
 
 ```bash
 gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
@@ -56,7 +56,7 @@ gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
   --zone=us-central2-b \
   --project=salesforce-research-internal \
   --tunnel-through-iap \
-  --command="pip install -r requirements.txt"
+  --command="pip install -r /home/shiyu.wang/bd3lms/requirements.txt"
 ```
 While BD3-LMs don't require FlashAttention, evaluating baselines from MDLM require `flash-attn==2.5.6`
 
@@ -156,7 +156,7 @@ python -u main.py \
 ```
 
 ### Training Pipeline
-To train BD3-LMs, use `mode=train` (default mode). Example scripts are provided in `scripts/train/train_owt*.sh`. Here's an example training script on OpenWebText:
+To train BD3-LMs, use `mode=train` (default mode). Example scripts are provided in `scripts/train/train_owt*.sh`. Here's an example training script on OpenWebText. Don't forget to change the path to your own!
 ```bash
 
 gcloud alpha compute tpus tpu-vm ssh sfr-weiran-yao-v4-512 \
