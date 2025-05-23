@@ -177,32 +177,6 @@ def _train(fabric: Fabric, config, logger, model, tokenizer):
   except Exception as e:
     logger.error(f"Error during TPU synchronization: {e}")
     raise
-  # if config.training.from_pretrained is not None and ckpt_path is None:
-  #   logger.info(f'Loading pretrained model from {config.training.from_pretrained}')
-  #   # load pretraining checkpoint
-  #   if 'kuleshov-group/' in config.training.from_pretrained:
-  #     # load from hf
-  #     model = diffusion.Diffusion(config, tokenizer=tokenizer)
-  #     state_dict = transformers.AutoModelForMaskedLM.from_pretrained(
-  #         config.training.from_pretrained,
-  #         trust_remote_code=True
-  #     ).state_dict()
-  #     model.load_state_dict(state_dict)
-  #   else:
-  #     model = diffusion.Diffusion.load_from_checkpoint(
-  #       config.training.from_pretrained,
-  #       tokenizer=tokenizer,
-  #       config=config,
-  #       strict=False)
-  #   # add buffers for grid search
-  #   model.register_buffer('sampling_eps_min', torch.tensor(
-  #     config.training.sampling_eps_min))
-  #   model.register_buffer('sampling_eps_max', torch.tensor(
-  #     config.training.sampling_eps_max))
-  # else:
-  #   logger.info(f'Initializing new model')
-  #   model = diffusion.Diffusion(
-  #     config, tokenizer=tokenizer)
 
   trainer = hydra.utils.instantiate(
     config.trainer,
@@ -320,16 +294,6 @@ def main(config):
         precision="bf16-true"          # NOTE: ValueError: `precision='bf16-mixed')` is not supported in XLA. `precision` must be one of: ('32-true', '16-true', 'bf16-true').
     )
   fabric.launch(_train_manual, config, logger, model, tokenizer)
-
-  # if config.mode == 'sample_eval':
-  #   config.wandb = None
-  #   samples = generate_samples(config, logger, tokenizer)
-  # elif config.mode == 'ppl_eval':
-  #   config.wandb = None
-  #   _ppl_eval(config, logger, tokenizer)
-  # else:
-  #   _train(fabric, config, logger, tokenizer)
-
 
 if __name__ == '__main__':
   main()
